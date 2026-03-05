@@ -22,6 +22,11 @@ function SignInForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
+    if (!formData.email || !formData.password) {
+      toast.error("Email and Password are required");
+      return;
+    }
+
     try {
       setIsLoading(true);
 
@@ -31,15 +36,19 @@ function SignInForm() {
         redirect: false,
       });
 
-      if (res?.error) {
+      if (!res) {
+        throw new Error("No response from server");
+      }
+
+      if (res.error) {
         throw new Error(res.error);
       }
 
       toast.success("Login Successfully !");
       router.push("/");
     } catch (err) {
-      const error = err as Error;
-      toast.error(error.message || "Login failed");
+      const errorMessage = err instanceof Error ? err.message : "Login failed";
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -140,7 +149,7 @@ function SignInForm() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-colors shadow-md"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-colors shadow-md disabled:opacity-70"
             >
               {isLoading ? "Logging in..." : "Log In"}
             </button>
