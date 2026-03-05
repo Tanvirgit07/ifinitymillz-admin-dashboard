@@ -1,4 +1,4 @@
-// app/orders/history/page.tsx   (or components/OrderHistory.tsx)
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useState } from "react";
@@ -13,28 +13,45 @@ import {
 import { Button } from "@/components/ui/button";
 import { Eye } from "lucide-react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
-// Dummy data (you can replace with real API later)
-const dummyOrders = Array.from({ length: 18 }, (_, i) => ({
-  id: i + 1,
-  titleName: "John Doe",
-  productName: "Enclomiphene",
-  givenDate: "15/07/25",
-  amount: "1,235",
-}));
-
-const ITEMS_PER_PAGE = 5; // as in your screenshot (showing 1 to 5)
+const ITEMS_PER_PAGE = 5;
 
 export default function OrderHistory() {
   const [currentPage, setCurrentPage] = useState(1);
+  const session = useSession();
+  const TOKEN = session?.data?.user?.accessToken;
 
-  const totalItems = dummyOrders.length;
+  // Fetch real payments/orders from API
+  const { data: ordersData, isLoading, error } = useQuery({
+    queryKey: ["orders"],
+    queryFn: async () => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/payment`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${TOKEN}`,
+          },
+        }
+      );
+      if (!res.ok) throw new Error("Failed to fetch orders");
+      const result = await res.json();
+      return result.data; // the array of payments
+    },
+  });
+
+  if (isLoading) return <p>Loading orders...</p>;
+  if (error) return <p>Error loading orders</p>;
+
+  const totalItems = ordersData?.length || 0;
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
-
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedOrders = dummyOrders.slice(
+  const paginatedOrders = ordersData?.slice(
     startIndex,
-    startIndex + ITEMS_PER_PAGE,
+    startIndex + ITEMS_PER_PAGE
   );
 
   return (
@@ -47,38 +64,50 @@ export default function OrderHistory() {
       </div>
 
       {/* Table Container */}
-      <div className="overflow-x-auto rounded-md border">
+      <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
         <Table>
           <TableHeader className="bg-gray-50">
             <TableRow>
-              <TableHead className="w-[180px] pl-6">Title/Name</TableHead>
-              <TableHead className="w-[180px]">Product Name</TableHead>
-              <TableHead className="w-[140px]">Given Date</TableHead>
-              <TableHead className="w-[120px]">Amount</TableHead>
+              <TableHead className="w-[180px] pl-6">User ID</TableHead>
+              <TableHead className="w-[180px]">Products</TableHead>
+              <TableHead className="w-[140px]">Date</TableHead>
+              <TableHead className="w-[120px]">Amount (USD)</TableHead>
               <TableHead className="w-[100px] text-center">Action</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
-            {paginatedOrders.map((order) => (
+            {paginatedOrders?.map((order: any) => (
               <TableRow
-                key={order.id}
+                key={order._id}
                 className="hover:bg-gray-50/70 border-b last:border-0"
               >
-                <TableCell className="pl-6 font-medium">
-                  {order.titleName}
-                </TableCell>
+                {/* User ID */}
+                <TableCell className="pl-6 font-medium">{order.user}</TableCell>
+
+                {/* Products */}
                 <TableCell className="text-gray-700">
-                  {order.productName}
+                  {order.items
+                    .map(
+                      (item: any) =>
+                        `${item.product} x${item.qty} (${item.size})`
+                    )
+                    .join(", ")}
                 </TableCell>
+
+                {/* Date */}
                 <TableCell className="text-gray-600">
-                  {order.givenDate}
+                  {new Date(order.createdAt).toLocaleDateString()}
                 </TableCell>
+
+                {/* Amount */}
                 <TableCell className="font-medium text-gray-900">
                   {order.amount}
                 </TableCell>
+
+                {/* Action */}
                 <TableCell className="text-center">
-                  <Link href={`/order-history/view-orderinfo/${order?.id}`}>
+                  <Link href={`/order-history/view-orderinfo/${order._id}`}>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -133,7 +162,9 @@ export default function OrderHistory() {
             variant="outline"
             size="sm"
             disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+            onClick={() =>
+              setCurrentPage((p) => Math.min(p + 1, totalPages))
+            }
             className="h-9 px-3"
           >
             →

@@ -11,19 +11,45 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Eye, X } from "lucide-react";
+import { Eye } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
-export function ViewContactModal() {
+interface ContactMessage {
+  _id: string;
+  name: string;
+  phoneNumber: string;
+  email: string;
+  message: string;
+  createdAt: string;
+}
+
+interface ViewContactModalProps {
+  contactMessage: ContactMessage;
+}
+
+export function ViewContactModal({ contactMessage }: ViewContactModalProps) {
   const [open, setOpen] = useState(false);
-  const message = {
-    name: "Sarah Johnson",
-    phone: "+1234567890",
-    email: "sarahjohnson@example.com",
-    received: "Today, 10:23 AM",
-    subject: "Question About Treatment",
-    messageBody:
-      "Lorem ipsum is the standard placeholder text used across the design, printing, and web development industries. Its primary purpose is to fill space in a layout so users can focus on visual elements rather than content.",
-  };
+
+  // Fetch single message from API
+  const { data: message, isLoading, error } = useQuery({
+    queryKey: ["contactMessage", contactMessage._id],
+    queryFn: async () => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/contact/${contactMessage._id}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            // Authorization: `Bearer ${TOKEN}` // add if needed
+          },
+        }
+      );
+      if (!res.ok) throw new Error("Failed to fetch message details");
+      const result = await res.json();
+      return result.data; // API returns { data: { ... } }
+    },
+    enabled: open, // Only fetch when modal is opened
+  });
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -43,52 +69,54 @@ export function ViewContactModal() {
         <DialogHeader className="px-6 py-5 border-b bg-white">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-lg font-semibold text-gray-900">
-              New Message
+              Message Details
             </DialogTitle>
           </div>
         </DialogHeader>
 
         {/* Content */}
         <div className="px-6 py-6 space-y-6 text-sm">
-          {/* From, Phone, Email – ৩ কলাম */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4">
-            <div>
-              <div className="text-gray-500 mb-0.5">From</div>
-              <div className="font-medium text-gray-900">{message.name}</div>
-            </div>
+          {isLoading && <p>Loading message...</p>}
+          {error && <p className="text-red-500">Failed to load message</p>}
+          {message && (
+            <>
+              {/* From, Phone, Email */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4">
+                <div>
+                  <div className="text-gray-500 mb-0.5">From</div>
+                  <div className="font-medium text-gray-900">{message.name}</div>
+                </div>
 
-            <div>
-              <div className="text-gray-500 mb-0.5">Phone Number</div>
-              <div className="font-medium text-gray-900">{message.phone}</div>
-            </div>
+                <div>
+                  <div className="text-gray-500 mb-0.5">Phone Number</div>
+                  <div className="font-medium text-gray-900">{message.phoneNumber}</div>
+                </div>
 
-            <div>
-              <div className="text-gray-500 mb-0.5">Email</div>
-              <div className="font-medium text-gray-900 break-all">
-                {message.email}
+                <div>
+                  <div className="text-gray-500 mb-0.5">Email</div>
+                  <div className="font-medium text-gray-900 break-all">
+                    {message.email}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Received */}
-          <div>
-            <div className="text-gray-500 mb-0.5">Received</div>
-            <div className="font-medium text-gray-900">{message.received}</div>
-          </div>
+              {/* Received */}
+              <div>
+                <div className="text-gray-500 mb-0.5">Received</div>
+                <div className="font-medium text-gray-900">
+                  {new Date(message.createdAt).toLocaleString()}
+                </div>
+              </div>
 
-          {/* Subject */}
-          <div>
-            <div className="text-gray-500 mb-0.5">Subject</div>
-            <div className="font-medium text-gray-900">{message.subject}</div>
-          </div>
-
-          {/* Message Box */}
-          <div className="space-y-1.5">
-            <div className="text-gray-500 mb-0.5">Message</div>
-            <div className="p-4 bg-gray-50 border border-gray-200 rounded-md min-h-[140px] text-gray-800 leading-relaxed whitespace-pre-wrap">
-              {message.messageBody}
-            </div>
-          </div>
+              {/* Subject */}
+              <div>
+                <div className="text-gray-500 mb-0.5">Message</div>
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded-md min-h-[140px] text-gray-800 leading-relaxed whitespace-pre-wrap">
+                  {message.message}
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Footer */}

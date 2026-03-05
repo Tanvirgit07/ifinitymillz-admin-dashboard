@@ -1,4 +1,4 @@
-// components/ContactMessages.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useState } from "react";
@@ -11,97 +11,49 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Eye, Trash2, Mail } from "lucide-react";
+import { Mail } from "lucide-react";
 import { ViewContactModal } from "@/components/Dialogs/ViewContactModal";
 import { DeleteModal } from "@/components/Dialogs/DeleteModal";
-
-// Dummy data
-const dummyMessages = [
-  {
-    id: 1,
-    name: "Sarah Johnson",
-    email: "sarah.johnson@example.com",
-    phone: "+1234567890",
-    subject: "Question about Research Grant",
-    received: "Today, 10:23 AM",
-    status: "unread",
-  },
-  {
-    id: 2,
-    name: "John Doe",
-    email: "john.doe@example.com",
-    phone: "+1234567890",
-    subject: "Technical Support Request",
-    received: "Yesterday, 4:12 PM",
-    status: "read",
-  },
-  {
-    id: 3,
-    name: "Alice Johnson",
-    email: "alice.johnson@example.com",
-    phone: "+1234567890",
-    subject: "Question about Community Development Grant",
-    received: "Yesterday, 1:20 PM",
-    status: "unread",
-  },
-  {
-    id: 4,
-    name: "Robert Williams",
-    email: "robert.williams@example.com",
-    phone: "+1234567890",
-    subject: "Technical issue with application form",
-    received: "Oct 06, 2025",
-    status: "read",
-  },
-  {
-    id: 5,
-    name: "Emily Davis",
-    email: "emily.davis@example.com",
-    phone: "+1234567890",
-    subject: "Feedback on grant process",
-    received: "Sep 01, 2025",
-    status: "read",
-  },
-  {
-    id: 6,
-    name: "Michael Brown",
-    email: "michael.brown@example.com",
-    phone: "+1234567890",
-    subject: "Partnership opportunity",
-    received: "Aug 16, 2025",
-    status: "read",
-  },
-  {
-    id: 7,
-    name: "David Jual",
-    email: "david.jual@example.com",
-    phone: "+1234567890",
-    subject: "Technical Support Request",
-    received: "Jul 06, 2025",
-    status: "read",
-  },
-  {
-    id: 8,
-    name: "Olivia Rhye",
-    email: "olivia.rhye@example.com",
-    phone: "+1234567890",
-    subject: "Technical Support Request",
-    received: "June 10, 2025",
-    status: "read",
-  },
-  // ... add more if you want to test pagination
-];
+import { useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
 const ITEMS_PER_PAGE = 5;
 
 export default function ContactMessages() {
   const [currentPage, setCurrentPage] = useState(1);
+  const session = useSession();
+  const TOKEN = session?.data?.user?.accessToken;
 
-  const totalItems = dummyMessages.length;
+  // Fetch real contact messages from API
+  const { data: contactMessages, isLoading, error } = useQuery({
+    queryKey: ["contactMessages"],
+    queryFn: async () => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/contact`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${TOKEN}`, // include token if needed
+          },
+        }
+      );
+      if (!res.ok) throw new Error("Failed to fetch contact messages");
+      const result = await res.json();
+      return result.data; // API returns { data: [...] }
+    },
+  });
+
+  if (isLoading) return <p>Loading messages...</p>;
+  if (error) return <p>Error loading messages</p>;
+
+  const totalItems = contactMessages?.length || 0;
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
-
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedMessages = dummyMessages.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedMessages = contactMessages?.slice(
+    startIndex,
+    startIndex + ITEMS_PER_PAGE
+  );
 
   return (
     <div className="">
@@ -127,9 +79,9 @@ export default function ContactMessages() {
           </TableHeader>
 
           <TableBody>
-            {paginatedMessages.map((msg) => (
+            {paginatedMessages?.map((msg: any) => (
               <TableRow
-                key={msg.id}
+                key={msg._id}
                 className="hover:bg-gray-50/70 transition-colors"
               >
                 <TableCell className="pl-6 font-medium py-3">
@@ -140,39 +92,20 @@ export default function ContactMessages() {
                     </span>
                   </div>
                 </TableCell>
-                <TableCell className="text-gray-600">{msg.phone}</TableCell>
-                <TableCell className="text-gray-700">{msg.subject}</TableCell>
-                <TableCell className="text-gray-600">{msg.received}</TableCell>
+                <TableCell className="text-gray-600">{msg.phoneNumber}</TableCell>
+                <TableCell className="text-gray-700">{msg.message}</TableCell>
+                <TableCell className="text-gray-600">
+                  {new Date(msg.createdAt).toLocaleDateString()}
+                </TableCell>
                 <TableCell className="text-center">
                   <div className="flex justify-center">
-                    <Mail
-                      className={`h-5 w-5 ${
-                        msg.status === "unread" ? "text-blue-600" : "text-gray-400"
-                      }`}
-                    />
+                    <Mail className="h-5 w-5 text-blue-600" />
                   </div>
                 </TableCell>
                 <TableCell className="text-center">
                   <div className="flex items-center justify-center gap-2">
-                    {/* <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-gray-600 hover:text-gray-900"
-                      title="View message"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button> */}
-
-                    <ViewContactModal />
-                    {/* <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                      title="Delete message"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button> */}
-                    <DeleteModal />
+                    <ViewContactModal contactMessage={msg} />
+                    <DeleteModal messageId={msg._id} />
                   </div>
                 </TableCell>
               </TableRow>
