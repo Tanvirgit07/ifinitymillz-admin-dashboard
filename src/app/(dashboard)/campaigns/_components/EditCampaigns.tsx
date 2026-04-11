@@ -1,15 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Plus, Upload, Trash2 } from "lucide-react";
 import Image from "next/image";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
+import { useParams } from "next/navigation";
+import { toast } from "sonner";
 
-interface Package {
+interface PackageInput {
   id: number;
   name: string;
   quantity: string;
   price: string;
+}
+
+interface CampaignLite {
+  _id: string;
+  isFeatured?: boolean;
+}
+
+interface CampaignDetails {
+  _id: string;
+  title?: string;
+  description?: string;
+  prizeImage?: string;
+  totalTickets?: number;
+  maxFreeEntries?: number;
+  startDate?: string;
+  endDate?: string;
+  drawDate?: string;
+  isFeatured?: boolean;
+  packages?: {
+    _id?: string;
+    name?: string;
+    ticketQuantity?: number;
+    price?: number;
+  }[];
 }
 
 const inputClass =
@@ -17,27 +45,119 @@ const inputClass =
 
 const labelClass = "text-[#C9C9C9] text-sm font-medium mb-1.5 block";
 
+const toDateInput = (value?: string) => {
+  if (!value) return "";
+  return new Date(value).toISOString().slice(0, 10);
+};
+
 export function EditCampaigns() {
+  const params = useParams();
+  const campaignId = String(params?.id || "");
+
   const [featured, setFeatured] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [packages, setPackages] = useState<Package[]>([
-    { id: 1, name: "Free plan", quantity: "5", price: "$00" },
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [packages, setPackages] = useState<PackageInput[]>([
+    { id: 1, name: "Advantage", quantity: "5", price: "20" },
   ]);
 
   const [form, setForm] = useState({
     title: "",
     description: "",
-    freeTicketLimit: "10",
-    ticketPrice: "$50",
-    totalTicket: "500.",
+    maxFreeEntries: "1",
+    totalTickets: "",
     startDate: "",
-    endDate: "680.",
+    endDate: "",
     drawDate: "",
   });
+
+  const session = useSession();
+  const TOKEN = session?.data?.user?.accessToken;
+  const queryClient = useQueryClient();
+
+  const { data: campaignsData } = useQuery({
+    queryKey: ["campaigns-feature-check"],
+    enabled: !!TOKEN,
+    queryFn: async () => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/campaigns?page=1&limit=200`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${TOKEN}`,
+          },
+        }
+      );
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to fetch campaigns");
+      }
+      return json?.data;
+    },
+  });
+
+  const { data: campaignDetails } = useQuery({
+    queryKey: ["campaign-details", campaignId],
+    enabled: !!TOKEN && !!campaignId,
+    queryFn: async () => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/campaigns/${campaignId}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${TOKEN}`,
+          },
+        }
+      );
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to fetch campaign details");
+      }
+      return json?.data as CampaignDetails;
+    },
+  });
+
+  useEffect(() => {
+    if (!campaignDetails?._id) return;
+
+    setForm({
+      title: campaignDetails.title || "",
+      description: campaignDetails.description || "",
+      maxFreeEntries: String(campaignDetails.maxFreeEntries ?? 1),
+      totalTickets: String(campaignDetails.totalTickets ?? ""),
+      startDate: toDateInput(campaignDetails.startDate),
+      endDate: toDateInput(campaignDetails.endDate),
+      drawDate: toDateInput(campaignDetails.drawDate),
+    });
+
+    setFeatured(Boolean(campaignDetails.isFeatured));
+    setImagePreview(campaignDetails.prizeImage || null);
+
+    const mappedPackages = (campaignDetails.packages || []).map((pkg, index) => ({
+      id: Number(`${Date.now()}${index}`),
+      name: pkg.name || "",
+      quantity: String(pkg.ticketQuantity ?? ""),
+      price: String(pkg.price ?? ""),
+    }));
+
+    if (mappedPackages.length > 0) {
+      setPackages(mappedPackages);
+    }
+  }, [campaignDetails]);
+
+  const hasOtherFeaturedCampaign = useMemo(() => {
+    const list: CampaignLite[] = campaignsData?.campaigns ?? [];
+    return list.some(
+      (campaign) => campaign?._id !== campaignId && campaign?.isFeatured === true
+    );
+  }, [campaignsData, campaignId]);
+
+  const canToggleFeatured = !hasOtherFeaturedCampaign || featured;
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setImageFile(file);
     const url = URL.createObjectURL(file);
     setImagePreview(url);
   };
@@ -57,252 +177,329 @@ export function EditCampaigns() {
     setPackages((prev) => prev.filter((p) => p.id !== id));
   };
 
-  const updatePackage = (id: number, field: keyof Package, value: string) => {
-    setPackages((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, [field]: value } : p))
-    );
+  const updatePackage = (id: number, field: keyof PackageInput, value: string) => {
+    setPackages((prev) => prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)));
   };
 
+  const editMutation = useMutation({
+    mutationFn: async ({ status }: { status: "Draft" | "Active" }) => {
+      if (!campaignId) throw new Error("Campaign ID missing");
+      if (!form.title.trim() || !form.description.trim()) {
+        throw new Error("Title and description are required");
+      }
+      if (!form.totalTickets || Number(form.totalTickets) <= 0) {
+        throw new Error("Total tickets must be greater than 0");
+      }
+      if (!form.startDate || !form.endDate || !form.drawDate) {
+        throw new Error("Start, end and draw date are required");
+      }
+
+      const end = new Date(form.endDate);
+      const draw = new Date(form.drawDate);
+      if (draw <= end) {
+        throw new Error("Draw date must be after end date");
+      }
+
+      const cleanedPackages = packages
+        .map((pkg) => ({
+          name: pkg.name.trim(),
+          ticketQuantity: Number(pkg.quantity),
+          price: Number(pkg.price),
+        }))
+        .filter((pkg) => pkg.name && pkg.ticketQuantity > 0 && pkg.price >= 0);
+
+      if (cleanedPackages.length === 0) {
+        throw new Error("At least one valid package is required");
+      }
+
+      const payload = new FormData();
+      payload.append("title", form.title.trim());
+      payload.append("description", form.description.trim());
+      payload.append("totalTickets", String(Number(form.totalTickets)));
+      payload.append("maxFreeEntries", String(Number(form.maxFreeEntries || 1)));
+      payload.append("startDate", form.startDate);
+      payload.append("endDate", form.endDate);
+      payload.append("drawDate", form.drawDate);
+      payload.append("isFeatured", String(canToggleFeatured ? featured : false));
+      payload.append("status", status);
+      payload.append("packages", JSON.stringify(cleanedPackages));
+      if (imageFile) {
+        payload.append("prizeImage", imageFile);
+      }
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/campaigns/${campaignId}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${TOKEN}`,
+          },
+          body: payload,
+        }
+      );
+
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to update campaign");
+      }
+      return json?.data;
+    },
+    onSuccess: (_, variables) => {
+      toast.success(
+        variables.status === "Draft"
+          ? "Campaign saved as draft"
+          : "Campaign published successfully"
+      );
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["campaigns-feature-check"] });
+      queryClient.invalidateQueries({ queryKey: ["campaign-details", campaignId] });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Request failed";
+      toast.error(message);
+    },
+  });
+
   const handleSaveAsDraft = () => {
-    console.log("Saved as draft:", { form, packages, featured });
+    editMutation.mutate({ status: "Draft" });
   };
 
   const handlePublish = () => {
-    console.log("Published:", { form, packages, featured });
+    editMutation.mutate({ status: "Active" });
   };
 
   return (
     <div className="overflow-y-auto p-0 gap-0 border border-[#2a2a2a] rounded-2xl bg-[#1c1c1c] shadow-2xl">
-        <style>{`
+      <style>{`
           ::-webkit-scrollbar{width:4px}
           ::-webkit-scrollbar-track{background:#1c1c1c}
           ::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:4px}
         `}</style>
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-7 pt-6 pb-5 border-b border-[#2a2a2a] sticky top-0 bg-[#1c1c1c] z-10">
-          <h2 className="text-white text-lg font-bold">Add Campaign</h2>
+      {/* Header */}
+      <div className="flex items-center justify-between px-7 pt-6 pb-5 border-b border-[#2a2a2a] sticky top-0 bg-[#1c1c1c] z-10">
+        <h2 className="text-white text-lg font-bold">Edit Campaign</h2>
+      </div>
+
+      {/* Form Body */}
+      <div className="px-7 py-6 flex flex-col gap-5">
+        {/* Row 1 — Title + Description */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>
+              Campaign Title<span className="text-[#e05555]">*</span>
+            </label>
+            <input
+              className={inputClass}
+              placeholder="Enter a compelling title for your campaign..."
+              value={form.title}
+              onChange={(e) => handleChange("title", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>
+              Description<span className="text-[#e05555]">*</span>
+            </label>
+            <input
+              className={inputClass}
+              placeholder="Win this amazing prize"
+              value={form.description}
+              onChange={(e) => handleChange("description", e.target.value)}
+            />
+          </div>
         </div>
 
-        {/* Form Body */}
-        <div className="px-7 py-6 flex flex-col gap-5">
-
-          {/* Row 1 — Title + Description */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>
-                Campaign Title<span className="text-[#e05555]">*</span>
-              </label>
-              <input
-                className={inputClass}
-                placeholder="Enter a compelling title for your campaign..."
-                value={form.title}
-                onChange={(e) => handleChange("title", e.target.value)}
+        {/* Campaign Image Upload */}
+        <div>
+          <label className={labelClass}>Campaign Image</label>
+          <label
+            htmlFor="campaign-image"
+            className="w-full h-[130px] border border-dashed border-[#3a3a3a] rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-[#c9a84c] transition-colors group bg-[#222]"
+          >
+            {imagePreview ? (
+              <Image
+                width={400}
+                height={300}
+                src={imagePreview}
+                alt="Preview"
+                className="h-full w-full object-cover rounded-xl"
               />
-            </div>
-            <div>
-              <label className={labelClass}>
-                Description<span className="text-[#e05555]">*</span>
-              </label>
-              <input
-                className={inputClass}
-                placeholder="Iphone 15 pro max..."
-                value={form.description}
-                onChange={(e) => handleChange("description", e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Campaign Image Upload */}
-          <div>
-            <label className={labelClass}>Campaign Image</label>
-            <label
-              htmlFor="campaign-image"
-              className="w-full h-[130px] border border-dashed border-[#3a3a3a] rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-[#c9a84c] transition-colors group bg-[#222]"
-            >
-              {imagePreview ? (
-                <Image
-                    width={400}
-                    height={300}
-                  src={imagePreview}
-                  alt="Preview"
-                  className="h-full w-full object-cover rounded-xl"
+            ) : (
+              <div className="flex flex-col items-center gap-2">
+                <Upload
+                  size={22}
+                  className="text-[#555] group-hover:text-[#c9a84c] transition-colors"
                 />
-              ) : (
-                <div className="flex flex-col items-center gap-2">
-                  <Upload size={22} className="text-[#555] group-hover:text-[#c9a84c] transition-colors" />
-                  <span className="text-[#555] text-xs group-hover:text-[#888] transition-colors">
-                    Click to upload image
-                  </span>
+                <span className="text-[#555] text-xs group-hover:text-[#888] transition-colors">
+                  Click to upload image
+                </span>
+              </div>
+            )}
+            <input
+              id="campaign-image"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageUpload}
+            />
+          </label>
+        </div>
+
+        {/* Free Ticket Limitation */}
+        <div>
+          <label className={labelClass}>Free Ticket Limitation</label>
+          <input
+            className={inputClass}
+            value={form.maxFreeEntries}
+            onChange={(e) => handleChange("maxFreeEntries", e.target.value)}
+            placeholder="1"
+          />
+        </div>
+
+        {/* Total Ticket */}
+        <div>
+          <label className={labelClass}>Total Ticket</label>
+          <input
+            className={inputClass}
+            value={form.totalTickets}
+            onChange={(e) => handleChange("totalTickets", e.target.value)}
+            placeholder="30"
+          />
+        </div>
+
+        {/* Packages */}
+        <div>
+          {packages.map((pkg, index) => (
+            <div key={pkg.id} className="mb-3">
+              {index === 0 && (
+                <div className="grid grid-cols-3 gap-4 mb-1.5">
+                  <label className={labelClass}>Package Name</label>
+                  <label className={labelClass}>Ticket Quantity</label>
+                  <label className={labelClass}>Price</label>
                 </div>
               )}
-              <input
-                id="campaign-image"
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleImageUpload}
-              />
-            </label>
-          </div>
-
-          {/* Free Ticket Limitation */}
-          <div>
-            <label className={labelClass}>Free Ticket Limitation</label>
-            <input
-              className={inputClass}
-              value={form.freeTicketLimit}
-              onChange={(e) => handleChange("freeTicketLimit", e.target.value)}
-              placeholder="10"
-            />
-          </div>
-
-          {/* Ticket Price + Total Ticket */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>
-                Ticket Price<span className="text-[#e05555]">*</span>
-              </label>
-              <input
-                className={inputClass}
-                value={form.ticketPrice}
-                onChange={(e) => handleChange("ticketPrice", e.target.value)}
-                placeholder="$50"
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Total Ticket</label>
-              <input
-                className={inputClass}
-                value={form.totalTicket}
-                onChange={(e) => handleChange("totalTicket", e.target.value)}
-                placeholder="500"
-              />
-            </div>
-          </div>
-
-          {/* Packages */}
-          <div>
-            {packages.map((pkg, index) => (
-              <div key={pkg.id} className="mb-3">
-                {index === 0 && (
-                  <div className="grid grid-cols-3 gap-4 mb-1.5">
-                    <label className={labelClass}>Package Name</label>
-                    <label className={labelClass}>Ticket Quantity</label>
-                    <label className={labelClass}>Price</label>
-                  </div>
-                )}
-                <div className="grid grid-cols-3 gap-4 items-center">
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <input
+                  className={inputClass}
+                  value={pkg.name}
+                  onChange={(e) => updatePackage(pkg.id, "name", e.target.value)}
+                  placeholder="Advantage"
+                />
+                <input
+                  className={inputClass}
+                  value={pkg.quantity}
+                  onChange={(e) => updatePackage(pkg.id, "quantity", e.target.value)}
+                  placeholder="5"
+                />
+                <div className="flex items-center gap-2">
                   <input
                     className={inputClass}
-                    value={pkg.name}
-                    onChange={(e) => updatePackage(pkg.id, "name", e.target.value)}
-                    placeholder="Free plan"
+                    value={pkg.price}
+                    onChange={(e) => updatePackage(pkg.id, "price", e.target.value)}
+                    placeholder="20"
                   />
-                  <input
-                    className={inputClass}
-                    value={pkg.quantity}
-                    onChange={(e) => updatePackage(pkg.id, "quantity", e.target.value)}
-                    placeholder="5"
-                  />
-                  <div className="flex items-center gap-2">
-                    <input
-                      className={inputClass}
-                      value={pkg.price}
-                      onChange={(e) => updatePackage(pkg.id, "price", e.target.value)}
-                      placeholder="$00"
-                    />
-                    {packages.length > 1 && (
-                      <button
-                        onClick={() => removePackage(pkg.id)}
-                        className="text-[#e05555] hover:text-[#f06666] transition-colors flex-shrink-0"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                  </div>
+                  {packages.length > 1 && (
+                    <button
+                      onClick={() => removePackage(pkg.id)}
+                      className="text-[#e05555] hover:text-[#f06666] transition-colors flex-shrink-0"
+                      type="button"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
-            ))}
-
-            {/* Add Package Row */}
-            <div className="flex justify-end mt-2">
-              <button
-                onClick={addPackage}
-                className="w-7 h-7 rounded-full bg-[#2a2a2a] border border-[#3a3a3a] flex items-center justify-center hover:bg-[#c9a84c] hover:border-[#c9a84c] transition-colors group"
-              >
-                <Plus size={14} className="text-[#888] group-hover:text-[#111]" />
-              </button>
             </div>
-          </div>
+          ))}
 
-          {/* Start Date + End Date */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>
-                Start Date<span className="text-[#e05555]">*</span>
-              </label>
-              <input
-                type="text"
-                className={inputClass}
-                value={form.startDate}
-                onChange={(e) => handleChange("startDate", e.target.value)}
-                placeholder="DD/MM/YYYY"
-              />
-            </div>
-            <div>
-              <label className={labelClass}>
-                End Date<span className="text-[#e05555]">*</span>
-              </label>
-              <input
-                className={inputClass}
-                value={form.endDate}
-                onChange={(e) => handleChange("endDate", e.target.value)}
-                placeholder="680."
-              />
-            </div>
-          </div>
-
-          {/* Draw Date */}
-          <div>
-            <label className={labelClass}>Draw Date</label>
-            <input
-              type="text"
-              className={inputClass}
-              value={form.drawDate}
-              onChange={(e) => handleChange("drawDate", e.target.value)}
-              placeholder="DD/MM/YYYY"
-            />
-          </div>
-
-          {/* Feature this Campaign toggle */}
-          <div className="flex items-center justify-between py-1">
-            <span className="text-[#C9C9C9] text-sm font-medium">
-              Feature this Campaign
-            </span>
-            <Switch
-              checked={featured}
-              onCheckedChange={setFeatured}
-              className="data-[state=checked]:bg-[#3dba6f] data-[state=unchecked]:bg-[#3a3a3a]"
-            />
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center gap-3 pt-1 pb-1">
+          {/* Add Package Row */}
+          <div className="flex justify-end mt-2">
             <button
-              onClick={handleSaveAsDraft}
-              className="px-6 py-2.5 rounded-full bg-[#3dba6f] hover:bg-[#34a561] text-white text-sm font-semibold transition-colors"
+              onClick={addPackage}
+              type="button"
+              className="w-7 h-7 rounded-full bg-[#2a2a2a] border border-[#3a3a3a] flex items-center justify-center hover:bg-[#c9a84c] hover:border-[#c9a84c] transition-colors group"
             >
-              Save As Draft
-            </button>
-            <button
-              onClick={handlePublish}
-              className="px-8 py-2.5 rounded-full bg-[#3dba6f] hover:bg-[#34a561] text-white text-sm font-semibold transition-colors"
-            >
-              Publish
+              <Plus size={14} className="text-[#888] group-hover:text-[#111]" />
             </button>
           </div>
         </div>
+
+        {/* Start Date + End Date */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>
+              Start Date<span className="text-[#e05555]">*</span>
+            </label>
+            <input
+              type="date"
+              className={inputClass}
+              value={form.startDate}
+              onChange={(e) => handleChange("startDate", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>
+              End Date<span className="text-[#e05555]">*</span>
+            </label>
+            <input
+              type="date"
+              className={inputClass}
+              value={form.endDate}
+              onChange={(e) => handleChange("endDate", e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Draw Date */}
+        <div>
+          <label className={labelClass}>
+            Draw Date<span className="text-[#e05555]">*</span>
+          </label>
+          <input
+            type="date"
+            className={inputClass}
+            value={form.drawDate}
+            onChange={(e) => handleChange("drawDate", e.target.value)}
+          />
+          <p className="text-[#777] text-xs mt-1">Draw date must be after end date.</p>
+        </div>
+
+        {/* Feature this Campaign toggle */}
+        <div className="flex items-center justify-between py-1">
+          <span className="text-[#C9C9C9] text-sm font-medium">
+            Feature this Campaign
+          </span>
+          <Switch
+            checked={featured}
+            onCheckedChange={setFeatured}
+            disabled={!canToggleFeatured}
+            className="data-[state=checked]:bg-[#3dba6f] data-[state=unchecked]:bg-[#3a3a3a]"
+          />
+        </div>
+        {!canToggleFeatured && (
+          <p className="text-[#888] text-xs -mt-2">
+            Another campaign is already featured. Disable that first.
+          </p>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3 pt-1 pb-1">
+          <button
+            onClick={handleSaveAsDraft}
+            disabled={editMutation.isPending}
+            className="px-6 py-2.5 rounded-full bg-[#3dba6f] hover:bg-[#34a561] text-white text-sm font-semibold transition-colors disabled:opacity-60"
+          >
+            Save As Draft
+          </button>
+          <button
+            onClick={handlePublish}
+            disabled={editMutation.isPending}
+            className="px-8 py-2.5 rounded-full bg-[#3dba6f] hover:bg-[#34a561] text-white text-sm font-semibold transition-colors disabled:opacity-60"
+          >
+            Publish
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

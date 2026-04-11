@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Table,
   TableBody,
@@ -11,61 +11,88 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft, ChevronRight, Ban } from "lucide-react";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
-type ActionType = "accept-reject" | "suspended";
+type UserStatus = "Pending" | "Approved" | "Rejected" | "Suspended";
 
-interface User {
-  id: number;
+interface ApiUser {
+  _id: string;
   name: string;
   email: string;
-  phone: string;
-  date: string;
-  action: ActionType;
+  phone?: string;
+  createdAt?: string;
+  status?: UserStatus;
 }
 
-const allUsers: User[] = [
-  { id: 1,  name: "John Martinez", email: "john.m@email.com", phone: "1212585474", date: "Oct 12, 2023", action: "accept-reject" },
-  { id: 2,  name: "Sarah Johnson",  email: "sarah.j@email.com", phone: "1212585474", date: "Oct 12, 2023", action: "accept-reject" },
-  { id: 3,  name: "Mike Thompson",  email: "mike.t@email.com",  phone: "1212585474", date: "Oct 12, 2023", action: "suspended" },
-  { id: 4,  name: "Emily Davis",    email: "emily.d@email.com", phone: "1212585474", date: "Oct 12, 2023", action: "accept-reject" },
-  { id: 5,  name: "Chris Wilson",   email: "chris.w@email.com", phone: "1212585474", date: "Oct 12, 2023", action: "accept-reject" },
-  { id: 6,  name: "Anna Roberts",   email: "anna.r@email.com",  phone: "1212585474", date: "Oct 12, 2023", action: "accept-reject" },
-  { id: 7,  name: "James Lee",      email: "james.l@email.com", phone: "1212585474", date: "Oct 12, 2023", action: "accept-reject" },
-  { id: 8,  name: "Olivia Brown",   email: "olivia.b@email.com",phone: "1212585474", date: "Oct 11, 2023", action: "accept-reject" },
-  { id: 9,  name: "Lucas Martin",   email: "lucas.m@email.com", phone: "1212585474", date: "Oct 11, 2023", action: "suspended" },
-  { id: 10, name: "Sophia White",   email: "sophia.w@email.com",phone: "1212585474", date: "Oct 11, 2023", action: "accept-reject" },
-  { id: 11, name: "Ethan Clark",    email: "ethan.c@email.com", phone: "1212585474", date: "Oct 10, 2023", action: "accept-reject" },
-  { id: 12, name: "Mia Lewis",      email: "mia.l@email.com",   phone: "1212585474", date: "Oct 10, 2023", action: "accept-reject" },
-  { id: 13, name: "Noah Hall",      email: "noah.h@email.com",  phone: "1212585474", date: "Oct 10, 2023", action: "suspended" },
-  { id: 14, name: "Isabella Young", email: "bella.y@email.com", phone: "1212585474", date: "Oct 09, 2023", action: "accept-reject" },
-  { id: 15, name: "Liam King",      email: "liam.k@email.com",  phone: "1212585474", date: "Oct 09, 2023", action: "accept-reject" },
-  { id: 16, name: "Ava Scott",      email: "ava.s@email.com",   phone: "1212585474", date: "Oct 09, 2023", action: "accept-reject" },
-  { id: 17, name: "Mason Adams",    email: "mason.a@email.com", phone: "1212585474", date: "Oct 08, 2023", action: "accept-reject" },
-  { id: 18, name: "Charlotte Baker",email: "char.b@email.com",  phone: "1212585474", date: "Oct 08, 2023", action: "suspended" },
-  { id: 19, name: "Logan Nelson",   email: "logan.n@email.com", phone: "1212585474", date: "Oct 08, 2023", action: "accept-reject" },
-  { id: 20, name: "Amelia Carter",  email: "amelia.c@email.com",phone: "1212585474", date: "Oct 07, 2023", action: "accept-reject" },
-  { id: 21, name: "Benjamin Hill",  email: "ben.h@email.com",   phone: "1212585474", date: "Oct 07, 2023", action: "accept-reject" },
-];
+const PAGE_SIZE = 10;
 
-const PAGE_SIZE = 9;
-
-function ActionButtons({ action }: { action: ActionType }) {
-  if (action === "suspended") {
+function ActionButtons({
+  status,
+  isLoading,
+  onAccept,
+  onReject,
+  onSuspend,
+}: {
+  status: UserStatus;
+  isLoading: boolean;
+  onAccept: () => void;
+  onReject: () => void;
+  onSuspend: () => void;
+}) {
+  if (status === "Suspended") {
     return (
-      <Badge className="bg-[#e05555] hover:bg-[#c94444] text-white text-[14px] font-semibold px-4 py-1.5 rounded-full flex items-center gap-1 cursor-pointer border-0">
+      <Badge className="bg-[#e05555] hover:bg-[#c94444] text-white text-[14px] font-semibold px-4 py-1.5 rounded-full flex items-center gap-1 cursor-pointer border-0 pointer-events-none opacity-80">
         <Ban size={12} />
         Suspend
       </Badge>
     );
   }
 
+  if (status === "Approved") {
+    return (
+      <Badge
+        onClick={onSuspend}
+        className={`bg-[#e05555] hover:bg-[#c94444] text-white text-[14px] font-semibold px-4 py-1.5 rounded-full flex items-center gap-1 cursor-pointer border-0 transition-colors ${
+          isLoading ? "pointer-events-none opacity-60" : ""
+        }`}
+      >
+        <Ban size={12} />
+        Suspend
+      </Badge>
+    );
+  }
+
+  if (status === "Rejected") {
+    return (
+      <Badge className="bg-[#e05555] hover:bg-[#c94444] text-white text-[14px] font-semibold px-4 py-1.5 rounded-full cursor-pointer border-0 pointer-events-none opacity-60">
+        Rejected
+      </Badge>
+    );
+  }
+
   return (
     <div className="flex items-center gap-2">
-      <Badge className="bg-[#3dba6f] hover:bg-[#34a561] text-white text-[14px] font-semibold px-4 py-1.5 rounded-full cursor-pointer border-0 transition-colors">
+      <Badge
+        onClick={onAccept}
+        className={`bg-[#3dba6f] hover:bg-[#34a561] text-white text-[14px] font-semibold px-4 py-1.5 rounded-full cursor-pointer border-0 transition-colors ${
+          isLoading ? "pointer-events-none opacity-60" : ""
+        }`}
+      >
         Accept
       </Badge>
-      <Badge className="bg-[#e05555] hover:bg-[#c94444] text-white text-[14px] font-semibold px-4 py-1.5 rounded-full cursor-pointer border-0 transition-colors">
+      <Badge
+        onClick={onReject}
+        className={`bg-[#e05555] hover:bg-[#c94444] text-white text-[14px] font-semibold px-4 py-1.5 rounded-full cursor-pointer border-0 transition-colors ${
+          isLoading ? "pointer-events-none opacity-60" : ""
+        }`}
+      >
         Reject
       </Badge>
     </div>
@@ -74,18 +101,89 @@ function ActionButtons({ action }: { action: ActionType }) {
 
 function UserManagement() {
   const [currentPage, setCurrentPage] = useState(1);
+  const [activeRowId, setActiveRowId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const session = useSession();
+  const TOKEN = session?.data?.user?.accessToken;
 
-  const totalPages = Math.ceil(allUsers.length / PAGE_SIZE);
-  const paginatedUsers = allUsers.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
-  );
+  const { data: userData, isLoading } = useQuery({
+    queryKey: ["user-data", currentPage],
+    enabled: !!TOKEN,
+    queryFn: async () => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/user/all-users?page=${currentPage}&limit=${PAGE_SIZE}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${TOKEN}`,
+          },
+        }
+      );
+
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to fetch users");
+      }
+      return json?.data;
+    },
+  });
+
+  const paginatedUsers: ApiUser[] = userData?.users ?? [];
+  const totalPages = Math.max(1, Number(userData?.paginationInfo?.totalPages || 1));
+  const totalData = Number(userData?.paginationInfo?.totalData || 0);
+  const shouldShowPagination = totalData > 10;
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const getPageNumbers = () => {
     const pages = [];
     for (let i = 1; i <= Math.min(totalPages, 3); i++) pages.push(i);
     return pages;
   };
+
+  const updateStatus = useMutation({
+    mutationFn: async ({
+      userId,
+      status,
+    }: {
+      userId: string;
+      status: UserStatus;
+    }) => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/user/${userId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${TOKEN}`,
+          },
+          body: JSON.stringify({
+            status,
+            isVerified: status === "Approved",
+          }),
+        }
+      );
+
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to update status");
+      }
+      return json;
+    },
+    onMutate: ({ userId }) => {
+      setActiveRowId(userId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user-data"] });
+    },
+    onSettled: () => {
+      setActiveRowId(null);
+    },
+  });
 
   return (
     <div className="min-h-screen">
@@ -121,39 +219,95 @@ function UserManagement() {
 
             {/* Body */}
             <TableBody>
-              {paginatedUsers.map((user, index) => (
-                <TableRow
-                  key={user.id}
-                  className={`
+              {isLoading
+                ? Array.from({ length: 6 }).map((_, index) => (
+                    <TableRow
+                      key={`skeleton-${index}`}
+                      className={`
                     border-b border-[#222222] hover:bg-[#1e1e1e] transition-colors
                     ${index % 2 === 0 ? "bg-[#161616]" : "bg-[#131313]"}
                   `}
-                >
-                  <TableCell className="text-[#C9C9C9] text-base font-medium text-center py-5 leading-[120%]">
-                    {user.name}
-                  </TableCell>
-                  <TableCell className="text-[#aaaaaa] text-base text-center py-5 leading-[120%]">
-                    {user.email}
-                  </TableCell>
-                  <TableCell className="text-[#aaaaaa] text-base text-center py-5 leading-[120%]">
-                    {user.phone}
-                  </TableCell>
-                  <TableCell className="text-[#aaaaaa] text-base text-center py-5 leading-[120%]">
-                    {user.date}
-                  </TableCell>
-                  <TableCell className="text-center py-4">
-                    <div className="flex justify-center">
-                      <ActionButtons action={user.action} />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    >
+                      <TableCell className="text-center py-5">
+                        <Skeleton className="h-5 w-32 mx-auto bg-[#2a2a2a]" />
+                      </TableCell>
+                      <TableCell className="text-center py-5">
+                        <Skeleton className="h-5 w-44 mx-auto bg-[#2a2a2a]" />
+                      </TableCell>
+                      <TableCell className="text-center py-5">
+                        <Skeleton className="h-5 w-24 mx-auto bg-[#2a2a2a]" />
+                      </TableCell>
+                      <TableCell className="text-center py-5">
+                        <Skeleton className="h-5 w-28 mx-auto bg-[#2a2a2a]" />
+                      </TableCell>
+                      <TableCell className="text-center py-4">
+                        <div className="flex justify-center">
+                          <Skeleton className="h-8 w-24 rounded-full bg-[#2a2a2a]" />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                : paginatedUsers.map((user, index) => (
+                    <TableRow
+                      key={user._id}
+                      className={`
+                    border-b border-[#222222] hover:bg-[#1e1e1e] transition-colors
+                    ${index % 2 === 0 ? "bg-[#161616]" : "bg-[#131313]"}
+                  `}
+                    >
+                      <TableCell className="text-[#C9C9C9] text-base font-medium text-center py-5 leading-[120%]">
+                        {user.name}
+                      </TableCell>
+                      <TableCell className="text-[#aaaaaa] text-base text-center py-5 leading-[120%]">
+                        {user.email}
+                      </TableCell>
+                      <TableCell className="text-[#aaaaaa] text-base text-center py-5 leading-[120%]">
+                        {user.phone || "N/A"}
+                      </TableCell>
+                      <TableCell className="text-[#aaaaaa] text-base text-center py-5 leading-[120%]">
+                        {user.createdAt
+                          ? new Date(user.createdAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "2-digit",
+                              year: "numeric",
+                            })
+                          : "-"}
+                      </TableCell>
+                      <TableCell className="text-center py-4">
+                        <div className="flex justify-center">
+                          <ActionButtons
+                            status={user.status || "Pending"}
+                            isLoading={updateStatus.isPending && activeRowId === user._id}
+                            onAccept={() =>
+                              updateStatus.mutate({
+                                userId: user._id,
+                                status: "Approved",
+                              })
+                            }
+                            onReject={() =>
+                              updateStatus.mutate({
+                                userId: user._id,
+                                status: "Rejected",
+                              })
+                            }
+                            onSuspend={() =>
+                              updateStatus.mutate({
+                                userId: user._id,
+                                status: "Suspended",
+                              })
+                            }
+                          />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
             </TableBody>
           </Table>
         </div>
 
         {/* Pagination */}
-        <div className="flex justify-end items-center gap-1 mt-5">
+        {shouldShowPagination && (
+          <div className="flex justify-end items-center gap-1 mt-5">
           {/* Prev */}
           <Button
             variant="outline"
@@ -192,7 +346,8 @@ function UserManagement() {
           >
             <ChevronRight size={14} />
           </Button>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

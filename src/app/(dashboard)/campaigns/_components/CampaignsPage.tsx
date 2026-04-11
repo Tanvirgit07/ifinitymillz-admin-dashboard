@@ -16,254 +16,28 @@ import { ChevronLeft, ChevronRight, Eye, Pencil, Plus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import CampaignDetailsModal from "@/components/Dialogs/CampaignsModal";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
-type StatusType = "Active" | "Closed";
+type StatusType = "Draft" | "Active" | "Ended" | "Closed";
 
 interface Campaign {
-  id: number;
-  image: string;
-  prizeTitle: string;
-  ticketPrice: string;
+  _id: string;
+  prizeImage: string;
+  title: string;
+  packages?: {
+    name: string;
+    ticketQuantity: number;
+    price: number;
+    _id: string;
+  }[];
   totalTickets: number;
+  soldTickets?: number;
   startDate: string;
   endDate: string;
   drawDate: string;
   status: StatusType;
 }
-
-const allCampaigns: Campaign[] = [
-  {
-    id: 1,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Royal Oak Heritage",
-    ticketPrice: "$40",
-    totalTickets: 100,
-    startDate: "12/02/2026",
-    endDate: "12/02/2026",
-    drawDate: "12/02/2026",
-    status: "Active",
-  },
-  {
-    id: 2,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Royal Oak Heritage",
-    ticketPrice: "$40",
-    totalTickets: 100,
-    startDate: "12/02/2026",
-    endDate: "12/02/2026",
-    drawDate: "12/02/2026",
-    status: "Closed",
-  },
-  {
-    id: 3,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Royal Oak Heritage",
-    ticketPrice: "$40",
-    totalTickets: 100,
-    startDate: "12/02/2026",
-    endDate: "12/02/2026",
-    drawDate: "12/02/2026",
-    status: "Active",
-  },
-  {
-    id: 4,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Royal Oak Heritage",
-    ticketPrice: "$40",
-    totalTickets: 100,
-    startDate: "12/02/2026",
-    endDate: "12/02/2026",
-    drawDate: "12/02/2026",
-    status: "Active",
-  },
-  {
-    id: 5,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Royal Oak Heritage",
-    ticketPrice: "$40",
-    totalTickets: 100,
-    startDate: "12/02/2026",
-    endDate: "12/02/2026",
-    drawDate: "12/02/2026",
-    status: "Closed",
-  },
-  {
-    id: 6,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Royal Oak Heritage",
-    ticketPrice: "$40",
-    totalTickets: 100,
-    startDate: "12/02/2026",
-    endDate: "12/02/2026",
-    drawDate: "12/02/2026",
-    status: "Closed",
-  },
-  {
-    id: 7,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Royal Oak Heritage",
-    ticketPrice: "$40",
-    totalTickets: 100,
-    startDate: "12/02/2026",
-    endDate: "12/02/2026",
-    drawDate: "12/02/2026",
-    status: "Closed",
-  },
-  {
-    id: 8,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Submariner Edition",
-    ticketPrice: "$60",
-    totalTickets: 200,
-    startDate: "11/15/2026",
-    endDate: "11/30/2026",
-    drawDate: "12/01/2026",
-    status: "Active",
-  },
-  {
-    id: 9,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Submariner Edition",
-    ticketPrice: "$60",
-    totalTickets: 200,
-    startDate: "11/15/2026",
-    endDate: "11/30/2026",
-    drawDate: "12/01/2026",
-    status: "Closed",
-  },
-  {
-    id: 10,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Daytona Chronograph",
-    ticketPrice: "$80",
-    totalTickets: 50,
-    startDate: "10/01/2026",
-    endDate: "10/20/2026",
-    drawDate: "10/25/2026",
-    status: "Active",
-  },
-  {
-    id: 11,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Daytona Chronograph",
-    ticketPrice: "$80",
-    totalTickets: 50,
-    startDate: "10/01/2026",
-    endDate: "10/20/2026",
-    drawDate: "10/25/2026",
-    status: "Closed",
-  },
-  {
-    id: 12,
-    image: "/placeholder-watch.png",
-    prizeTitle: "GMT Master II",
-    ticketPrice: "$50",
-    totalTickets: 150,
-    startDate: "09/01/2026",
-    endDate: "09/30/2026",
-    drawDate: "10/05/2026",
-    status: "Active",
-  },
-  {
-    id: 13,
-    image: "/placeholder-watch.png",
-    prizeTitle: "GMT Master II",
-    ticketPrice: "$50",
-    totalTickets: 150,
-    startDate: "09/01/2026",
-    endDate: "09/30/2026",
-    drawDate: "10/05/2026",
-    status: "Closed",
-  },
-  {
-    id: 14,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Explorer II",
-    ticketPrice: "$35",
-    totalTickets: 300,
-    startDate: "08/10/2026",
-    endDate: "08/25/2026",
-    drawDate: "09/01/2026",
-    status: "Active",
-  },
-  {
-    id: 15,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Explorer II",
-    ticketPrice: "$35",
-    totalTickets: 300,
-    startDate: "08/10/2026",
-    endDate: "08/25/2026",
-    drawDate: "09/01/2026",
-    status: "Closed",
-  },
-  {
-    id: 16,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Milgauss Edition",
-    ticketPrice: "$45",
-    totalTickets: 120,
-    startDate: "07/05/2026",
-    endDate: "07/20/2026",
-    drawDate: "07/25/2026",
-    status: "Active",
-  },
-  {
-    id: 17,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Milgauss Edition",
-    ticketPrice: "$45",
-    totalTickets: 120,
-    startDate: "07/05/2026",
-    endDate: "07/20/2026",
-    drawDate: "07/25/2026",
-    status: "Closed",
-  },
-  {
-    id: 18,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Sea-Dweller Pro",
-    ticketPrice: "$70",
-    totalTickets: 80,
-    startDate: "06/01/2026",
-    endDate: "06/15/2026",
-    drawDate: "06/20/2026",
-    status: "Active",
-  },
-  {
-    id: 19,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Sea-Dweller Pro",
-    ticketPrice: "$70",
-    totalTickets: 80,
-    startDate: "06/01/2026",
-    endDate: "06/15/2026",
-    drawDate: "06/20/2026",
-    status: "Closed",
-  },
-  {
-    id: 20,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Cellini Moonphase",
-    ticketPrice: "$90",
-    totalTickets: 60,
-    startDate: "05/01/2026",
-    endDate: "05/20/2026",
-    drawDate: "05/25/2026",
-    status: "Active",
-  },
-  {
-    id: 21,
-    image: "/placeholder-watch.png",
-    prizeTitle: "Cellini Moonphase",
-    ticketPrice: "$90",
-    totalTickets: 60,
-    startDate: "05/01/2026",
-    endDate: "05/20/2026",
-    drawDate: "05/25/2026",
-    status: "Closed",
-  },
-];
 
 const PAGE_SIZE = 7;
 
@@ -279,6 +53,13 @@ function PrizeImage({ alt }: { alt: string }) {
 }
 
 function StatusBadge({ status }: { status: StatusType }) {
+  if (status === "Draft") {
+    return (
+      <Badge className="bg-[#2a2a2a] hover:bg-[#2a2a2a] text-[#c9a84c] text-xs font-semibold px-3 py-1 rounded-full border border-[#4a3a20] cursor-default">
+        Draft
+      </Badge>
+    );
+  }
   if (status === "Active") {
     return (
       <Badge className="bg-[#1a3a2a] hover:bg-[#1a3a2a] text-[#3dba6f] text-xs font-semibold px-3 py-1 rounded-full border border-[#2a5a3a] cursor-default">
@@ -288,24 +69,83 @@ function StatusBadge({ status }: { status: StatusType }) {
   }
   return (
     <Badge className="bg-[#2a2a2a] hover:bg-[#2a2a2a] text-[#888888] text-xs font-semibold px-3 py-1 rounded-full border border-[#3a3a3a] cursor-default">
-      Closed
+      {status}
     </Badge>
   );
 }
 
 function CampaignsPage() {
   const [currentPage, setCurrentPage] = useState(1);
-
-  const totalPages = Math.ceil(allCampaigns.length / PAGE_SIZE);
-  const paginated = allCampaigns.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
-  );
+  const session = useSession();
+  const TOKEN = session?.data?.user?.accessToken;
+  const queryClient = useQueryClient();
 
   const getPageNumbers = () => {
     const pages: number[] = [];
     for (let i = 1; i <= Math.min(totalPages, 3); i++) pages.push(i);
     return pages;
+  };
+
+  const { data: campaignData } = useQuery({
+    queryKey: ["campaigns", currentPage],
+    enabled: !!TOKEN,
+    queryFn: async () => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/campaigns?page=${currentPage}&limit=${PAGE_SIZE}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${TOKEN}`,
+          },
+        },
+      );
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to fetch campaigns");
+      }
+      return json?.data;
+    },
+  });
+
+  const updateStatus = useMutation({
+    mutationFn: async ({
+      campaignId,
+      status,
+    }: {
+      campaignId: string;
+      status: "Active" | "Ended";
+    }) => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/campaigns/${campaignId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${TOKEN}`,
+          },
+          body: JSON.stringify({ status }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to update campaign status");
+      }
+      return json?.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+    },
+  });
+
+  const campaigns: Campaign[] = campaignData?.campaigns ?? [];
+  const totalPages = Math.max(
+    1,
+    Number(campaignData?.paginationInfo?.totalPages || 1),
+  );
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "-";
+    return new Date(dateString).toLocaleDateString("en-GB");
   };
 
   return (
@@ -316,10 +156,12 @@ function CampaignsPage() {
           <h1 className="text-white text-[24px] font-bold leading-[120%]">
             Campaigns
           </h1>
-          <button className="flex items-center gap-2 bg-[#e8b84b] hover:bg-[#d4a73e] text-[#111111] font-semibold text-sm px-5 py-2.5 rounded-full transition-colors">
-            <Plus size={16} strokeWidth={2.5} />
-            Add Campaign
-          </button>
+          <Link href="/campaigns/add-campaigns">
+            <button className="flex items-center gap-2 bg-[#e8b84b] hover:bg-[#d4a73e] text-[#111111] font-semibold text-sm px-5 py-2.5 rounded-full transition-colors">
+              <Plus size={16} strokeWidth={2.5} />
+              Add Campaign
+            </button>
+          </Link>
         </div>
 
         {/* Table Container */}
@@ -351,26 +193,28 @@ function CampaignsPage() {
 
             {/* Body */}
             <TableBody>
-              {paginated.map((campaign, index) => (
+              {campaigns.map((campaign, index) => (
                 <TableRow
-                  key={campaign.id}
+                  key={campaign._id}
                   className={`border-b border-[#222222] hover:bg-[#1e1e1e] transition-colors ${
                     index % 2 === 0 ? "bg-[#161616]" : "bg-[#131313]"
                   }`}
                 >
                   {/* Prize Title */}
                   <TableCell className="py-4 text-center">
-                    <div className="flex items-center gap-3 justify-center">
-                      <PrizeImage alt={campaign.prizeTitle} />
+                    <div className="flex items-center gap-3 justify-start">
+                      <PrizeImage alt={campaign.title} />
                       <span className="text-[#C9C9C9] text-base font-medium whitespace-nowrap">
-                        {campaign.prizeTitle}
+                        {campaign.title}
                       </span>
                     </div>
                   </TableCell>
 
                   {/* Ticket Price */}
                   <TableCell className="text-[#aaaaaa] text-base text-center py-4 whitespace-nowrap">
-                    {campaign.ticketPrice}
+                    {campaign.packages?.[0]?.price
+                      ? `$${campaign.packages[0].price}`
+                      : "-"}
                   </TableCell>
 
                   {/* Total Tickets */}
@@ -380,23 +224,43 @@ function CampaignsPage() {
 
                   {/* Start Date */}
                   <TableCell className="text-[#aaaaaa] text-base text-center py-4 whitespace-nowrap">
-                    {campaign.startDate}
+                    {formatDate(campaign.startDate)}
                   </TableCell>
 
                   {/* End Date */}
                   <TableCell className="text-[#aaaaaa] text-base text-center py-4 whitespace-nowrap">
-                    {campaign.endDate}
+                    {formatDate(campaign.endDate)}
                   </TableCell>
 
                   {/* Draw Date */}
                   <TableCell className="text-[#aaaaaa] text-base text-center py-4 whitespace-nowrap">
-                    {campaign.drawDate}
+                    {formatDate(campaign.drawDate)}
                   </TableCell>
 
                   {/* Status */}
                   <TableCell className="text-center py-4">
-                    <div className="flex justify-center">
+                    <div className="flex flex-col items-center gap-1.5">
                       <StatusBadge status={campaign.status} />
+                      {(campaign.status === "Draft" ||
+                        campaign.status === "Active") && (
+                        <button
+                          onClick={() =>
+                            updateStatus.mutate({
+                              campaignId: campaign._id,
+                              status:
+                                campaign.status === "Draft"
+                                  ? "Active"
+                                  : "Ended",
+                            })
+                          }
+                          disabled={updateStatus.isPending}
+                          className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-[#4a3a20] bg-[#2a2010] text-[#c9a84c] hover:bg-[#3a2a10] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {campaign.status === "Draft"
+                            ? "Set Active"
+                            : "Set Ended"}
+                        </button>
+                      )}
                     </div>
                   </TableCell>
 
@@ -416,15 +280,17 @@ function CampaignsPage() {
                       <CampaignDetailsModal />
 
                       {/* Edit */}
-                      <button
-                        className="w-8 h-8 rounded-md bg-[#2a2010] border border-[#4a3a20] flex items-center justify-center hover:bg-[#3a2a10] transition-colors group"
-                        title="Edit"
-                      >
-                        <Pencil
-                          size={14}
-                          className="text-[#c9a84c] group-hover:text-[#e8b84b]"
-                        />
-                      </button>
+                      <Link href={`campaigns/edit-campaigns/${campaign?._id}`}>
+                        <button
+                          className="w-8 h-8 rounded-md bg-[#2a2010] border border-[#4a3a20] flex items-center justify-center hover:bg-[#3a2a10] transition-colors group"
+                          title="Edit"
+                        >
+                          <Pencil
+                            size={14}
+                            className="text-[#c9a84c] group-hover:text-[#e8b84b]"
+                          />
+                        </button>
+                      </Link>
                     </div>
                   </TableCell>
 
