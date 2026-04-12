@@ -296,7 +296,7 @@ function CampaignsPage() {
 
                   {/* Winner */}
                   <TableCell className="text-center py-4">
-                    <Link href="/campaigns/genarate">
+                    <Link href={`/campaigns/genarate/${campaign?._id}`}>
                       <button className="bg-[#3dba6f] hover:bg-[#34a561] text-white text-xs font-semibold px-4 py-1.5 rounded-full transition-colors whitespace-nowrap">
                         Generate
                       </button>

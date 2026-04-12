@@ -1,23 +1,49 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
+import { useParams } from "next/navigation";
 import React, { useState } from "react";
 
 const TICKET_NUMBERS = [
-  "500", "13", "16", "501", "201", "115", "101",
-  "201", "38", "107", "52", "101", "300", "100",
-  "75", "101", "96", "115", "314", "370", "401",
-  "419", "501", "9",
+  "500",
+  "13",
+  "16",
+  "501",
+  "201",
+  "115",
+  "101",
+  "201",
+  "38",
+  "107",
+  "52",
+  "101",
+  "300",
+  "100",
+  "75",
+  "101",
+  "96",
+  "115",
+  "314",
+  "370",
+  "401",
+  "419",
+  "501",
+  "9",
 ];
 
-const winner = {
-  campaign: "Mayfair Estates Draw",
-  name: "Jackson Doe",
-  email: "Jackson11doe@gmail.com",
-  ticket: "101",
-  winningNumber: "500",
-};
+// ❌ Remove static winner object, dynamic state use করব
+// const winner = { ... }  <-- সরিয়ে দিলাম
 
-function SpinWheel({ spinning, rotation }: { spinning: boolean; rotation: number }) {
+function SpinWheel({
+  spinning,
+  rotation,
+  winningNumber,
+}: {
+  spinning: boolean;
+  rotation: number;
+  winningNumber: string;
+}) {
   const segments = TICKET_NUMBERS.length;
   const segAngle = 360 / segments;
   const radius = 160;
@@ -64,13 +90,13 @@ function SpinWheel({ spinning, rotation }: { spinning: boolean; rotation: number
 
   return (
     <div className="relative flex items-center justify-center">
-      {/* Outer glow ring */}
       <div
         className="absolute rounded-full"
         style={{
           width: 400,
           height: 400,
-          background: "radial-gradient(circle, rgba(201,168,76,0.15) 0%, transparent 70%)",
+          background:
+            "radial-gradient(circle, rgba(201,168,76,0.15) 0%, transparent 70%)",
           filter: "blur(20px)",
         }}
       />
@@ -87,11 +113,23 @@ function SpinWheel({ spinning, rotation }: { spinning: boolean; rotation: number
           filter: "drop-shadow(0 0 30px rgba(201,168,76,0.4))",
         }}
       >
-        {/* Outer decorative ring */}
-        <circle cx={cx} cy={cy} r={radius + 14} fill="#1a1200" stroke="#c9a84c" strokeWidth={2} />
-        <circle cx={cx} cy={cy} r={radius + 8} fill="none" stroke="#8a6820" strokeWidth={1} />
+        <circle
+          cx={cx}
+          cy={cy}
+          r={radius + 14}
+          fill="#1a1200"
+          stroke="#c9a84c"
+          strokeWidth={2}
+        />
+        <circle
+          cx={cx}
+          cy={cy}
+          r={radius + 8}
+          fill="none"
+          stroke="#8a6820"
+          strokeWidth={1}
+        />
 
-        {/* Segments */}
         {TICKET_NUMBERS.map((num, i) => {
           const isGold = i % 2 === 0;
           return (
@@ -119,16 +157,20 @@ function SpinWheel({ spinning, rotation }: { spinning: boolean; rotation: number
           );
         })}
 
-        {/* Dot markers on outer ring */}
         {TICKET_NUMBERS.map((_, i) => {
           const angle = i * segAngle;
           const pos = polarToCartesian(angle, radius + 11);
           return (
-            <circle key={`dot-${i}`} cx={pos.x} cy={pos.y} r={3} fill="#e8c84b" />
+            <circle
+              key={`dot-${i}`}
+              cx={pos.x}
+              cy={pos.y}
+              r={3}
+              fill="#e8c84b"
+            />
           );
         })}
 
-        {/* Inner dark circle */}
         <circle
           cx={cx}
           cy={cy}
@@ -138,7 +180,6 @@ function SpinWheel({ spinning, rotation }: { spinning: boolean; rotation: number
           strokeWidth={2}
         />
 
-        {/* Inner gradient def */}
         <defs>
           <radialGradient id="innerGrad" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="#2a1f00" />
@@ -146,7 +187,7 @@ function SpinWheel({ spinning, rotation }: { spinning: boolean; rotation: number
           </radialGradient>
         </defs>
 
-        {/* Center number */}
+        {/* ✅ Dynamic winningNumber prop থেকে দেখাচ্ছে */}
         <text
           x={cx}
           y={cy}
@@ -158,12 +199,25 @@ function SpinWheel({ spinning, rotation }: { spinning: boolean; rotation: number
           fontFamily="Georgia, serif"
           style={{ letterSpacing: "-1px" }}
         >
-          {winner.winningNumber}
+          {winningNumber}
         </text>
 
-        {/* Wheel base stem */}
-        <rect x={182} y={cy + innerRadius - 3} width={16} height={22} rx={4} fill="#c9a84c" />
-        <rect x={170} y={cy + innerRadius + 16} width={40} height={8} rx={4} fill="#8a6820" />
+        <rect
+          x={182}
+          y={cy + innerRadius - 3}
+          width={16}
+          height={22}
+          rx={4}
+          fill="#c9a84c"
+        />
+        <rect
+          x={170}
+          y={cy + innerRadius + 16}
+          width={40}
+          height={8}
+          rx={4}
+          fill="#8a6820"
+        />
       </svg>
     </div>
   );
@@ -175,15 +229,52 @@ function GenaratePage() {
   const [rotation, setRotation] = useState(0);
   const [showWinner, setShowWinner] = useState(false);
 
+  const session = useSession();
+  const TOKEN = session?.data?.user?.accessToken;
+
+  const params = useParams();
+  const id = params?.id;
+
+  // ✅ API response winner data রাখার জন্য state
+  const [winnerData, setWinnerData] = useState<{
+    winnerName: string;
+    winningTicket: string;
+  } | null>(null);
+
+  // ✅ generateMutation সম্পূর্ণ করা হয়েছে
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/campaigns/${id}/generate-winner`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${TOKEN}`,
+          },
+        },
+      );
+      const json = await res.json();
+      return json.data as { winnerName: string; winningTicket: string };
+    },
+    onSuccess: (data) => {
+      // ✅ Spin শেষ হওয়ার পর winner data set হবে (setTimeout এর সাথে sync)
+      setWinnerData(data);
+    },
+  });
+
   const handleSpin = () => {
     if (spinning) return;
     setSpinning(true);
     setShowWinner(false);
+    setWinnerData(null);
 
     const extraSpins = 5 * 360;
     const randomStop = Math.floor(Math.random() * 360);
     const newRotation = rotation + extraSpins + randomStop;
     setRotation(newRotation);
+
+    // ✅ API call শুরু করো spin এর সাথে সাথে
+    generateMutation.mutate();
 
     setTimeout(() => {
       setSpinning(false);
@@ -194,7 +285,6 @@ function GenaratePage() {
 
   return (
     <div className="min-h-screen">
-      {/* Title */}
       <h1 className="text-white text-[24px] font-bold mb-8 leading-[120%]">
         Generate Winner
       </h1>
@@ -202,18 +292,18 @@ function GenaratePage() {
       <div className="flex items-start gap-8">
         {/* Left — Wheel + Button */}
         <div className="flex flex-col items-center gap-6">
-          {/* Wheel container */}
           <div
             className="relative flex items-center justify-center rounded-2xl overflow-hidden"
             style={{
               width: 520,
               height: 420,
-              background: "radial-gradient(ellipse at center, #1a1200 0%, #0d0900 60%, #080600 100%)",
+              background:
+                "radial-gradient(ellipse at center, #1a1200 0%, #0d0900 60%, #080600 100%)",
               border: "1px solid #2a2200",
-              boxShadow: "inset 0 0 60px rgba(0,0,0,0.8), 0 0 40px rgba(201,168,76,0.1)",
+              boxShadow:
+                "inset 0 0 60px rgba(0,0,0,0.8), 0 0 40px rgba(201,168,76,0.1)",
             }}
           >
-            {/* Pointer at top */}
             <div
               className="absolute top-3 left-1/2 z-10"
               style={{ transform: "translateX(-50%)" }}
@@ -230,10 +320,14 @@ function GenaratePage() {
               />
             </div>
 
-            <SpinWheel spinning={spinning} rotation={rotation} />
+            {/* ✅ winningNumber prop pass করা হচ্ছে */}
+            <SpinWheel
+              spinning={spinning}
+              rotation={rotation}
+              winningNumber={winnerData?.winningTicket ?? "?"}
+            />
           </div>
 
-          {/* Spin Button */}
           <button
             onClick={handleSpin}
             disabled={spinning}
@@ -251,7 +345,11 @@ function GenaratePage() {
               letterSpacing: "0.25em",
             }}
           >
-            {spinning ? "S P I N N I N G . . ." : hasSpun ? "S P I N  A G A I N" : "S P I N"}
+            {spinning
+              ? "S P I N N I N G . . ."
+              : hasSpun
+                ? "S P I N  A G A I N"
+                : "S P I N"}
           </button>
         </div>
 
@@ -263,12 +361,9 @@ function GenaratePage() {
             border: "1px solid #2a2a2a",
           }}
         >
-          {showWinner ? (
-            <div
-              style={{
-                animation: "fadeInUp 0.5s ease forwards",
-              }}
-            >
+          {/* ✅ showWinner এবং winnerData দুটোই check করা হচ্ছে */}
+          {showWinner && winnerData ? (
+            <div style={{ animation: "fadeInUp 0.5s ease forwards" }}>
               <style>{`
                 @keyframes fadeInUp {
                   from { opacity: 0; transform: translateY(16px); }
@@ -276,28 +371,23 @@ function GenaratePage() {
                 }
               `}</style>
 
-              <h2 className="text-white text-xl font-bold mb-4">Winner Details</h2>
-
-              <p className="text-[#c9a84c] text-sm font-semibold mb-5">
-                {winner.campaign}
-              </p>
+              <h2 className="text-white text-xl font-bold mb-4">
+                Winner Details
+              </h2>
 
               <div className="flex flex-col gap-3">
                 <p className="text-[#C9C9C9] text-base leading-[150%]">
                   <span className="text-[#888]">Name : </span>
-                  {winner.name}
+                  {/* ✅ API response থেকে winnerName */}
+                  {winnerData.winnerName}
                 </p>
                 <p className="text-[#C9C9C9] text-base leading-[150%]">
-                  <span className="text-[#888]">Email : </span>
-                  {winner.email}
-                </p>
-                <p className="text-[#C9C9C9] text-base leading-[150%]">
-                  <span className="text-[#888]">Ticket Number : </span>
-                  {winner.ticket}
+                  <span className="text-[#888]">Winning Ticket : </span>
+                  {/* ✅ API response থেকে winningTicket */}
+                  {winnerData.winningTicket}
                 </p>
               </div>
 
-              {/* Winning ticket highlight */}
               <div
                 className="mt-8 rounded-xl px-6 py-4 inline-flex items-center gap-3"
                 style={{
@@ -307,9 +397,16 @@ function GenaratePage() {
               >
                 <span className="text-[#888] text-sm">Winning Ticket</span>
                 <span className="text-[#e8b84b] text-2xl font-bold font-serif">
-                  #{winner.winningNumber}
+                  {/* ✅ API response থেকে winningTicket */}#
+                  {winnerData.winningTicket}
                 </span>
               </div>
+            </div>
+          ) : showWinner && generateMutation.isPending ? (
+            // ✅ Spin শেষ কিন্তু API এখনো loading
+            <div className="flex flex-col items-start gap-3">
+              <h2 className="text-white text-xl font-bold">Winner Details</h2>
+              <p className="text-[#555] text-sm mt-2">Fetching winner...</p>
             </div>
           ) : (
             <div className="flex flex-col items-start gap-3">
@@ -317,7 +414,6 @@ function GenaratePage() {
               <p className="text-[#555] text-sm mt-2">
                 Spin the wheel to generate a winner.
               </p>
-              {/* Placeholder lines */}
               <div className="flex flex-col gap-3 mt-4 w-full">
                 {[140, 200, 120].map((w, i) => (
                   <div
