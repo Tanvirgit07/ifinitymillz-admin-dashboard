@@ -36,7 +36,7 @@ interface EntryDetail {
   entryType?: string;
   amount?: number;
   paymentStatus?: string;
-  transactionId?: string;
+  // transactionId?: string;
   createdAt?: string;
   packageInfo?: PackageInfo;
 }
@@ -52,12 +52,6 @@ const formatDate = (date?: string) => {
   const d = new Date(date);
   if (Number.isNaN(d.getTime())) return "-";
   return d.toLocaleDateString("en-GB");
-};
-
-const shortTransactionId = (id?: string) => {
-  if (!id) return "-";
-  if (id.length <= 24) return id;
-  return `${id.slice(0, 12)}...${id.slice(-8)}`;
 };
 
 export default function ViewUserModal({
@@ -86,8 +80,8 @@ export default function ViewUserModal({
     },
     { label: "Payment", value: entry.paymentStatus || "-" },
     { label: "Date", value: formatDate(entry.createdAt) },
-    { label: "Transaction", value: shortTransactionId(entry.transactionId) },
-    { label: "Entry ID", value: entry._id || "-" },
+    // { label: "Transaction", value: shortTransactionId(entry.transactionId) },
+    // { label: "Entry ID", value: entry._id || "-" },
   ];
 
   return (

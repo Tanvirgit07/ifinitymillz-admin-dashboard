@@ -18,6 +18,7 @@ const navigation = [
   { name: "Campaigns", href: "/campaigns", icon: HandCoins },
   { name: "Winners/Draw Results", href: "/winners", icon: HandCoins },
    { name: "Withdrawal Request", href: "/withdrawal-request", icon: HandCoins },
+   { name: "Campaign Applications", href: "/campaign-application", icon: HandCoins },
 ];
 
 export function Sidebar() {

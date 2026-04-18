@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
 import React, { useState } from "react";
+import { toast } from "sonner";
 
 const TICKET_NUMBERS = [
   "500",
@@ -254,11 +255,21 @@ function GenaratePage() {
         },
       );
       const json = await res.json();
-      return json.data as { winnerName: string; winningTicket: string };
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to generate winner");
+      }
+      return {
+        data: json.data as { winnerName: string; winningTicket: string },
+        message: json?.message as string | undefined,
+      };
     },
-    onSuccess: (data) => {
+    onSuccess: ({ data, message }) => {
       // ✅ Spin শেষ হওয়ার পর winner data set হবে (setTimeout এর সাথে sync)
       setWinnerData(data);
+      toast.success(message || "Winner generated successfully");
+    },
+    onError: (err: Error) => {
+      toast.error(err?.message || "Failed to generate winner");
     },
   });
 

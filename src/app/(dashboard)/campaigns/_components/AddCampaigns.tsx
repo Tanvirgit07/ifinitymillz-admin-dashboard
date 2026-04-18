@@ -38,6 +38,7 @@ export function AddCampaigns() {
     description: "",
     maxFreeEntries: "1",
     totalTickets: "",
+    campaignPrice: "",
     startDate: "",
     endDate: "",
     drawDate: "",
@@ -145,6 +146,7 @@ export function AddCampaigns() {
       payload.append("description", form.description.trim());
       payload.append("totalTickets", String(Number(form.totalTickets)));
       payload.append("maxFreeEntries", String(Number(form.maxFreeEntries || 1)));
+      payload.append("campaignPrice", String(Number(form.campaignPrice || 0)));
       payload.append("startDate", form.startDate);
       payload.append("endDate", form.endDate);
       payload.append("drawDate", form.drawDate);
@@ -180,6 +182,7 @@ export function AddCampaigns() {
         description: "",
         maxFreeEntries: "1",
         totalTickets: "",
+        campaignPrice: "",
         startDate: "",
         endDate: "",
         drawDate: "",
@@ -299,6 +302,17 @@ export function AddCampaigns() {
             value={form.totalTickets}
             onChange={(e) => handleChange("totalTickets", e.target.value)}
             placeholder="30"
+          />
+        </div>
+
+        {/* Campaign Price */}
+        <div>
+          <label className={labelClass}>Campaign Price</label>
+          <input
+            className={inputClass}
+            value={form.campaignPrice}
+            onChange={(e) => handleChange("campaignPrice", e.target.value)}
+            placeholder="0"
           />
         </div>
 
